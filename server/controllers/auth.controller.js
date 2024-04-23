@@ -42,7 +42,7 @@ export const preRegister = async (req, res) => {
     const content = `<p>Please click the link below to activate your account.</p>
     <a href="${process.env.CLIENT_URL}/auth/account-activate/${token}">Activate my account</a>`;
 
-    const subject = "Please verify your account.";
+    const subject = "Please verify your account";
     awsSES.sendEmail(emailTemplate(email, content, subject), (err, data) => {
       if (err) {
         console.log(err);
@@ -115,6 +115,64 @@ export const login = async (req, res) => {
     return res.json({ token, refreshToken, user });
   } catch (error) {
     console.log(error);
+    return res.status(400).json({ error: "Something went wrong. Try again." });
+  }
+};
+
+export const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+    //find user by email
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res
+        .status(400)
+        .json({ error: "Could not find user with that email" });
+    }
+    const resetCode = nanoid();
+    user.resetCode = resetCode;
+    await user.save();
+    const token = jwt.sign({ resetCode }, process.env.JWT_SECRET, {
+      expiresIn: "1h",
+    });
+
+    const content = `<p>Please click the link below to access your account.</p>
+    <a href="${process.env.CLIENT_URL}/auth/access-account/${token}">Access my account</a>`;
+
+    const subject = "Access your account";
+    awsSES.sendEmail(emailTemplate(email, content, subject), (err, data) => {
+      if (err) {
+        console.log(err);
+        return res.status(400).send({ ok: "Email is invalid" });
+      } else {
+        console.log(data);
+        return res.json({ oK: true });
+      }
+    });
+  } catch (error) {
+    return res.status(400).json({ error: "Something went wrong. Try again." });
+  }
+};
+
+export const accessAccount = async (req, res) => {
+  try {
+    const { resetCode } = jwt.verify(
+      req.body?.resetCode,
+      process.env.JWT_SECRET
+    );
+    const user = await User.findOneAndUpdate({ resetCode }, { resetCode: "" });
+    const token = jwt.sign({ _id: user._id }, process.env.JWT_SECRET, {
+      expiresIn: "1h",
+    });
+    const refreshToken = jwt.sign({ _id: user._id }, process.env.JWT_SECRET, {
+      expiresIn: "7d",
+    });
+    //send the response
+    user.password = undefined;
+    user.resetCode = undefined;
+
+    return res.json({ token, refreshToken, user });
+  } catch (error) {
     return res.status(400).json({ error: "Something went wrong. Try again." });
   }
 };

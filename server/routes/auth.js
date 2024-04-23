@@ -12,4 +12,8 @@ router.post("/register", authController.register);
 
 router.post("/login", authController.login);
 
+router.post("/forgot-password", authController.forgotPassword);
+
+router.post("/access-account", authController.accessAccount);
+
 export default router;
