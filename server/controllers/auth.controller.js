@@ -6,6 +6,21 @@ import User from "../models/user.model.js";
 import { nanoid } from "nanoid";
 import validator from "email-validator";
 
+const tokenAndUserResponse = (res, user) => {
+  const token = jwt.sign({ _id: user._id }, process.env.JWT_SECRET, {
+    expiresIn: "1h",
+  });
+
+  const refreshToken = jwt.sign({ _id: user._id }, process.env.JWT_SECRET, {
+    expiresIn: "7d",
+  });
+
+  user.password = undefined;
+  user.resetCode = undefined;
+
+  return res.json({ token, refreshToken, user });
+};
+
 export const welcome = (req, res) => {
   res.json({
     data: "Hello from nodejs api",
@@ -57,11 +72,16 @@ export const preRegister = async (req, res) => {
     return res.status(400).json({ error: "Something went wrong. Try again." });
   }
 };
-
 export const register = async (req, res) => {
   try {
-    const { token } = req.body;
-    const { email, password } = jwt.verify(token, process.env.JWT_SECRET);
+    const { email, password } = jwt.verify(
+      req.body?.token,
+      process.env.JWT_SECRET
+    );
+    const userExists = await User.findOne({ email });
+    if (userExists) {
+      return res.status(400).json({ error: "Email is taken" });
+    }
     const hashedPassword = await hashPassword(password);
     const user = new User({
       username: nanoid(6),
@@ -70,18 +90,7 @@ export const register = async (req, res) => {
     });
     await user.save();
 
-    const newToken = jwt.sign({ _id: user._id }, process.env.JWT_SECRET, {
-      expiresIn: "1h",
-    });
-
-    const refreshToken = jwt.sign({ _id: user._id }, process.env.JWT_SECRET, {
-      expiresIn: "7d",
-    });
-
-    user.password = undefined;
-    user.resetCode = undefined;
-
-    return res.json({ token: newToken, refreshToken, user });
+    tokenAndUserResponse(res, user);
   } catch (error) {
     console.log(error);
     return res.status(400).json({ error: "Something went wrong. Try again." });
@@ -101,18 +110,7 @@ export const login = async (req, res) => {
     if (!match) {
       return res.status(403).json({ error: "Wrong password" });
     }
-    //create jwt
-    const token = jwt.sign({ _id: user._id }, process.env.JWT_SECRET, {
-      expiresIn: "1h",
-    });
-    const refreshToken = jwt.sign({ _id: user._id }, process.env.JWT_SECRET, {
-      expiresIn: "7d",
-    });
-    //send the response
-    user.password = undefined;
-    user.resetCode = undefined;
-
-    return res.json({ token, refreshToken, user });
+    tokenAndUserResponse(res, user);
   } catch (error) {
     console.log(error);
     return res.status(400).json({ error: "Something went wrong. Try again." });
@@ -161,18 +159,88 @@ export const accessAccount = async (req, res) => {
       process.env.JWT_SECRET
     );
     const user = await User.findOneAndUpdate({ resetCode }, { resetCode: "" });
-    const token = jwt.sign({ _id: user._id }, process.env.JWT_SECRET, {
-      expiresIn: "1h",
-    });
-    const refreshToken = jwt.sign({ _id: user._id }, process.env.JWT_SECRET, {
-      expiresIn: "7d",
-    });
-    //send the response
+    tokenAndUserResponse(res, user);
+  } catch (error) {
+    return res.status(400).json({ error: "Something went wrong. Try again." });
+  }
+};
+
+export const refreshToken = async (req, res) => {
+  try {
+    const { _id } = jwt.verify(
+      req.headers?.refresh_token,
+      process.env.JWT_SECRET
+    );
+    const user = await User.findById(_id);
+    tokenAndUserResponse(res, user);
+  } catch (error) {
+    return res.status(403).json({ error: "Refresh token failed" });
+  }
+};
+
+export const currentUser = async (req, res) => {
+  try {
+    const user = await User.findById(req.user?._id);
+    if (!user) {
+      return res.status(403).json({ error: "User not found" });
+    }
     user.password = undefined;
     user.resetCode = undefined;
-
-    return res.json({ token, refreshToken, user });
+    return res.json(user);
   } catch (error) {
+    console.log(error);
+    return res.status(403).json({ error: "Unauthorized" });
+  }
+};
+
+export const publicProfile = async (req, res) => {
+  try {
+    const user = await User.findOne({ username: req.params?.username });
+    user.password = undefined;
+    user.resetCode = undefined;
+    return res.json(user);
+  } catch (error) {
+    console.log(error);
+    return res.status(404).json({ error: "User not found" });
+  }
+};
+
+export const updatePassword = async (req, res) => {
+  try {
+    const { password } = req.body;
+    if (!password) {
+      return res.status(400).json({ error: "Password is required" });
+    }
+    if (password.length < 6) {
+      return res
+        .status(400)
+        .json({ error: "Password should be min 6 characters" });
+    }
+    const hashedPassword = await hashPassword(password);
+    await User.findByIdAndUpdate(req.user?._id, {
+      password: hashedPassword,
+    });
+    return res.json({ ok: true });
+  } catch (error) {
+    console.log(error);
+    return res.status(400).json({ error: "Something went wrong. Try again." });
+  }
+};
+
+export const updateProfile = async (req, res) => {
+  try {
+    const { password, email, ...rest } = req.body;
+    const user = await User.findByIdAndUpdate(req.user?._id, rest, {
+      new: true,
+    });
+    user.password = undefined;
+    user.resetCode = undefined;
+    return res.json(user);
+  } catch (error) {
+    console.log(error);
+    if (error.codeName == "DuplicateKey") {
+      return res.status(400).json({ error: "Username is already taken" });
+    }
     return res.status(400).json({ error: "Something went wrong. Try again." });
   }
 };
