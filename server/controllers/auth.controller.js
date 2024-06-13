@@ -34,20 +34,20 @@ export const preRegister = async (req, res) => {
     const { email, password } = req.body;
     // validate email and password
     if (!validator.validate(email)) {
-      return res.status(400).json({ error: "A valid email is required" });
+      return res.status(200).json({ error: "A valid email is required" });
     }
     if (!password) {
-      return res.status(400).json({ error: "Password is required" });
+      return res.status(200).json({ error: "Password is required" });
     }
     if (password && password?.length < 6) {
       return res
-        .status(400)
+        .status(200)
         .json({ error: "Password should be at least 6 characters" });
     }
 
     const user = await User.findOne({ email });
     if (user) {
-      return res.status(400).json({ error: "Email is taken" });
+      return res.status(200).json({ error: "Email is taken" });
     }
 
     const token = jwt.sign({ email, password }, process.env.JWT_SECRET, {
@@ -61,7 +61,7 @@ export const preRegister = async (req, res) => {
     awsSES.sendEmail(emailTemplate(email, content, subject), (err, data) => {
       if (err) {
         console.log(err);
-        return res.status(400).send({ error: "Email is invalid" });
+        return res.status(200).send({ error: "Email is invalid" });
       } else {
         console.log(data);
         return res.json({ oK: true });
@@ -69,7 +69,7 @@ export const preRegister = async (req, res) => {
     });
   } catch (error) {
     console.log(error);
-    return res.status(400).json({ error: "Something went wrong. Try again." });
+    return res.status(200).json({ error: "Something went wrong. Try again." });
   }
 };
 export const register = async (req, res) => {
@@ -80,7 +80,7 @@ export const register = async (req, res) => {
     );
     const userExists = await User.findOne({ email });
     if (userExists) {
-      return res.status(400).json({ error: "Email is taken" });
+      return res.status(200).json({ error: "Email is taken" });
     }
     const hashedPassword = await hashPassword(password);
     const user = new User({
@@ -93,7 +93,7 @@ export const register = async (req, res) => {
     tokenAndUserResponse(res, user);
   } catch (error) {
     console.log(error);
-    return res.status(400).json({ error: "Something went wrong. Try again." });
+    return res.status(200).json({ error: "Something went wrong. Try again." });
   }
 };
 
@@ -103,17 +103,17 @@ export const login = async (req, res) => {
     //find user by email
     const user = await User.findOne({ email });
     if (!user) {
-      return res.status(403).json({ error: "User not found" });
+      return res.status(200).json({ error: "User not found" });
     }
     //compare password
     const match = await comparePassword(password, user.password);
     if (!match) {
-      return res.status(403).json({ error: "Wrong password" });
+      return res.status(200).json({ error: "Wrong password" });
     }
     tokenAndUserResponse(res, user);
   } catch (error) {
     console.log(error);
-    return res.status(400).json({ error: "Something went wrong. Try again." });
+    return res.status(200).json({ error: "Something went wrong. Try again." });
   }
 };
 
@@ -124,7 +124,7 @@ export const forgotPassword = async (req, res) => {
     const user = await User.findOne({ email });
     if (!user) {
       return res
-        .status(400)
+        .status(200)
         .json({ error: "Could not find user with that email" });
     }
     const resetCode = nanoid();
@@ -141,27 +141,39 @@ export const forgotPassword = async (req, res) => {
     awsSES.sendEmail(emailTemplate(email, content, subject), (err, data) => {
       if (err) {
         console.log(err);
-        return res.status(400).send({ ok: "Email is invalid" });
+        return res.status(200).send({ ok: "Email is invalid" });
       } else {
         console.log(data);
         return res.json({ oK: true });
       }
     });
   } catch (error) {
-    return res.status(400).json({ error: "Something went wrong. Try again." });
+    return res.status(200).json({ error: "Something went wrong. Try again." });
   }
 };
 
 export const accessAccount = async (req, res) => {
   try {
+    console.log("access account");
+    const { password } = req.body;
+    if (password && password?.length < 6) {
+      return res
+        .status(200)
+        .json({ error: "Password should be at least 6 characters" });
+    }
     const { resetCode } = jwt.verify(
       req.body?.resetCode,
       process.env.JWT_SECRET
     );
-    const user = await User.findOneAndUpdate({ resetCode }, { resetCode: "" });
+    const hashedPassword = await hashPassword(password);
+    const user = await User.findOneAndUpdate(
+      { resetCode },
+      { resetCode: "", password: hashedPassword }
+    );
+
     tokenAndUserResponse(res, user);
   } catch (error) {
-    return res.status(400).json({ error: "Something went wrong. Try again." });
+    return res.status(200).json({ error: "Something went wrong. Try again." });
   }
 };
 
