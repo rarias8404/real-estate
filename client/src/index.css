@@ -2,3 +2,7 @@
   color: #fff;
   background: #2196f3;
 }
+
+.pointer {
+  cursor: pointer;
+}

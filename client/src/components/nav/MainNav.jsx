@@ -15,12 +15,23 @@ const MainNav = () => {
     navigate('/')
   }
 
+  const handlePostAd = () => {
+    if (isLoggedIn) {
+      navigate('/ad/create')
+    } else {
+      navigate('/login')
+    }
+  }
+
   return (
     <nav className="nav d-flex justify-content-between lead">
       <div className="d-flex" style={{ gap: 12 }}>
         <NavLink className="nav-link" to="/">
           Home
         </NavLink>
+        <a className="nav-link pointer" onClick={handlePostAd}>
+          Post Ad
+        </a>
         {!isLoggedIn ? (
           <>
             <NavLink className="nav-link" to="/login">

@@ -61,7 +61,6 @@ const Register = () => {
                 placeholder="Enter your password"
                 className="form-control mb-4"
                 required
-                autoFocus
                 value={form.password}
                 onChange={handleChange}
               />

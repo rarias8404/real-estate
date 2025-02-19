@@ -7,7 +7,7 @@ import { useAuth } from '../../context/auth.context'
 const AccessAccount = () => {
   const [password, setPassword] = useState('')
   const [passwordConfirm, setPasswordConfirm] = useState('')
-  const [loading, setLoading] = useState('')
+  const [loading, setLoading] = useState(false)
   const { resetCode } = useParams()
   const { saveAuth } = useAuth()
   const navigate = useNavigate()
